@@ -527,7 +527,7 @@ int fs_read(int fd, void *buf, size_t count){
 	void* dirty_block = malloc(BLOCK_SIZE*sizeof(char));
 	block_read(current_fat,dirty_block);
 	// if whatever is left over of the dirty block is greater than count
-	if((int)count < BLOCK_SIZE - offset_left){
+	if((int)count <= BLOCK_SIZE - offset_left){
 		// 2 cases
 		// 1: whatever is left of the block we want
 		// 2: the block is not fully written
