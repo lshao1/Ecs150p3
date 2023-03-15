@@ -116,7 +116,7 @@ int fs_info(void) {
 			free_fat += 1;
 		}
 	}
-	printf("fat_free_ratio = %d", free_fat);
+	printf("fat_free_ratio=%d", free_fat);
 	printf("/%d\n",total_fat);
 	// how many free rootdirs there are
 	int root_dir_elements = FS_FILE_MAX_COUNT;
@@ -126,7 +126,7 @@ int fs_info(void) {
 			free_dir += 1;
 		}
 	}
-	printf("rdir_free_ratio = %d",free_dir);
+	printf("rdir_free_ratio=%d",free_dir);
 	printf("/%d\n",root_dir_elements);
 	return 0;
 }
