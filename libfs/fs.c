@@ -103,7 +103,7 @@ int fs_info(void) {
 	// fat blocks
 	printf("fat_blk_count=%d\n", first_block.Fat_Blocks);
 	// which block is the rdir
-	printf("rdir_blk=%d\n", first_block.Root_Dir);
+	printf("rdir location=%d\n", first_block.Root_Dir);
 	// where is data start
 	printf("data_blk=%d\n",first_block.Data_Start);
 	// how many data blocks there are
@@ -159,22 +159,16 @@ int fs_create(const char *filename) {
 		return -1;
 	}
 	root_dir_elements = FS_FILE_MAX_COUNT;
+	// find a place where root is not taken
 	for(int i = 0; i < root_dir_elements; i++){
 		if(root_dir[i].file_name[0] == '\0'){
+			// found free spot for root 
 			struct root_nodes* this_root = &root_dir[i];
 			strncpy(this_root->file_name,filename,strlen(filename));
 			this_root->file_size = 0;
-			// need to find a fat block
-			int total_fat = BLOCK_SIZE/FATSIZE*first_block.Fat_Blocks;
-			for(int j = 0 ; j < total_fat;j++) {
-				if(*(fat_representation + j) == 0) {
-					// we found a free fat block that we can allocate
-					this_root->index = j;
-					// change the fat's value from 0 to FAT_E0C
-					*(fat_representation + j) = FAT_E0C;
-					return 0;
-				}
-			}	
+			// init the start index to fate0c
+			this_root->index = FAT_E0C;
+			return 0;
 		}
 	}
 	return -1;
@@ -406,7 +400,17 @@ int fs_write(int fd, void *buf, size_t count){
 	struct fd this_file = file_descriptors[fd];
 	// need to find where the first block available is
 	void* buf_cpy = buf;
-	uint16_t first_write_fat = find_dirty_fat(this_file);
+	uint16_t first_write_fat = 0;
+	if(this_file.root->index == FAT_E0C){
+		// haven't found the init index yet
+		int find_free = find_new_block();
+		if(find_free == -1){
+			// no fat available
+			return 0;
+		}
+		this_file.root->index = find_free - first_block.Data_Start;
+	}
+	first_write_fat = find_dirty_fat(this_file);
 	// first deal with the dirty fat
 	// how much space we have in the dirty fat block
 	uint16_t left_over_offset = BLOCK_SIZE - this_file.offset%BLOCK_SIZE;
