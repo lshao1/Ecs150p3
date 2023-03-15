@@ -58,7 +58,7 @@ int fs_mount(const char *diskname) {
 	// need to match the fats and put them into fat_representation
 	int block_track = 1;
 	int offset = 0;
-	for(block_track = 1; block_track < 1 + first_block.Fat_Blocks; block_track++) {
+	for(block_track; block_track < 1 + first_block.Fat_Blocks; block_track++) {
 		if(block_read(block_track,&fat_representation[offset]) == -1) {
 			return -1;
 		}
@@ -103,7 +103,7 @@ int fs_info(void) {
 	// fat blocks
 	printf("fat_blk_count=%d\n", first_block.Fat_Blocks);
 	// which block is the rdir
-	printf("rdir_blk=%d\n", first_block.Root_Dir);
+	printf("rdir location=%d\n", first_block.Root_Dir);
 	// where is data start
 	printf("data_blk=%d\n",first_block.Data_Start);
 	// how many data blocks there are
@@ -402,6 +402,9 @@ int fs_write(int fd, void *buf, size_t count){
 	void* buf_cpy = buf;
 	uint16_t first_write_fat = 0;
 	if(this_file.root->index == FAT_E0C){
+		if(count == 0){
+			return 0;
+		}
 		// haven't found the init index yet
 		int find_free = find_new_block();
 		if(find_free == -1){
