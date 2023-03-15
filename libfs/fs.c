@@ -89,6 +89,7 @@ int fs_umount(void) {
 	free(fat_representation);
 	block_write(root_location,root_dir);
 	block_disk_close();
+	return 0;
 }
 
 int fs_info(void) {
@@ -127,6 +128,7 @@ int fs_info(void) {
 	}
 	printf("rdir_free_ratio = %d",free_dir);
 	printf("/%d\n",root_dir_elements);
+	return 0;
 }
 
 int fs_create(const char *filename) {
@@ -160,7 +162,7 @@ int fs_create(const char *filename) {
 	for(int i = 0; i < root_dir_elements; i++){
 		if(root_dir[i].file_name[0] == '\0'){
 			struct root_nodes* this_root = &root_dir[i];
-			strncpy(this_root->file_name,filename,sizeof(filename));
+			strncpy(this_root->file_name,filename,strlen(filename));
 			this_root->file_size = 0;
 			// need to find a fat block
 			int total_fat = BLOCK_SIZE/FATSIZE*first_block.Fat_Blocks;
@@ -210,7 +212,6 @@ int fs_delete(const char *filename) {
 	}
 	// check for file name exists
 	int root_dir_elements = FS_FILE_MAX_COUNT;
-	int free_dir = 0;
 	int found_file = -1;
 	for(int i = 0; i < root_dir_elements;i++) {
 		// name exists
@@ -481,6 +482,7 @@ int fs_write(int fd, void *buf, size_t count){
 		leftover_count -= BLOCK_SIZE;
 		last_block = available_fat;
 	}
+	return -1;
 }
 
 uint16_t find_first_read(struct fd this_file, int* offset_left) {
@@ -562,5 +564,6 @@ int fs_read(int fd, void *buf, size_t count){
 		current_fat = fat_representation[current_fat - first_block.Data_Start] + first_block.Data_Start;
 		total_read += BLOCK_SIZE;
 	}
+	return -1;
 }
 
