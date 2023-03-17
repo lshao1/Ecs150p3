@@ -86,7 +86,7 @@ int fs_umount(void) {
 	}
 	// load in the root dir
 	int root_location = 1 + first_block.Fat_Blocks;
-	free(fat_representation);
+	//free(fat_representation);
 	block_write(root_location,root_dir);
 	block_disk_close();
 	return 0;
@@ -187,11 +187,12 @@ void clear_directory (struct root_nodes* this_root) {
 void clear_fat(int head) {
 	int fat_location = head;
 	while(1){
-		uint16_t next_fat = *(fat_representation + fat_location);
-		*(fat_representation + fat_location) = 0;
+		uint16_t next_fat = fat_representation[fat_location];
+		fat_representation[fat_location] = 0;
 		if(next_fat == FAT_E0C){
 			return;
 		}
+		fat_location = next_fat;
 	}
 }
 int fs_delete(const char *filename) {
@@ -219,8 +220,10 @@ int fs_delete(const char *filename) {
 	}
 	// check if the file is currently opened
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
-		if(strcmp(file_descriptors[i].root->file_name, filename) == 0){
+		if(file_descriptors[i].root != EMPTY_REF){
+			if(strcmp(file_descriptors[i].root->file_name, filename) == 0){
 			return -1;
+		}
 		}
 	}
 	/* TODO: Phase 2 */
@@ -359,7 +362,7 @@ uint16_t find_dirty_fat(struct fd this_file){
 	int offset = this_file.offset;
 	offset -= BLOCK_SIZE;
 	while(1){
-		if(offset < 0){
+		if(offset <= 0){
 			return current_fat + first_block.Data_Start;
 		}
 		current_fat = fat_representation[current_fat];
@@ -377,15 +380,21 @@ int find_new_block(){
 	return -1;
 }
 
-void* create_writeblock (void* buf, size_t count){
+void* create_writeblock (void* buf, size_t count, uint16_t real_block){
 	void* write = malloc(BLOCK_SIZE*sizeof(char));
+	if(real_block != 0){
+		block_read(real_block,write);
+	}
 	memcpy(write,buf,count);
 	return write;
 }
 
 // how much space we have allocated 
 int allocated_space (int size){
-	return (BLOCK_SIZE - size%BLOCK_SIZE) + size/BLOCK_SIZE*BLOCK_SIZE;
+	if(size%BLOCK_SIZE == 0){
+		return size;
+	}
+	return size/BLOCK_SIZE*BLOCK_SIZE + BLOCK_SIZE;
 }
 
 int fs_write(int fd, void *buf, size_t count){
@@ -412,11 +421,17 @@ int fs_write(int fd, void *buf, size_t count){
 			return 0;
 		}
 		this_file.root->index = find_free - first_block.Data_Start;
+		fat_representation[find_free - first_block.Data_Start] = FAT_E0C;
 	}
 	first_write_fat = find_dirty_fat(this_file);
 	// first deal with the dirty fat
 	// how much space we have in the dirty fat block
 	uint16_t left_over_offset = BLOCK_SIZE - this_file.offset%BLOCK_SIZE;
+	// if it's 0, then we do have 4096 left over
+	// if it is 4096, we actually have 0 offset left over
+	if(this_file.offset%BLOCK_SIZE == 0 && this_file.offset != 0){
+		left_over_offset = 0;
+	}
 	void* dirty_block = malloc(BLOCK_SIZE*sizeof(char));
 	block_read(first_write_fat,dirty_block);
 	// the left over of the dirty fat block is enough
@@ -426,6 +441,9 @@ int fs_write(int fd, void *buf, size_t count){
 		block_write(first_write_fat,dirty_block);
 		// set the offset
 		this_file.root->file_size += count;
+		if(this_file.offset + count > this_file.root->file_size) {
+			this_file.root ->file_size = this_file.offset + count;
+		}
 		fs_lseek(fd,this_file.offset + count);
 		free(dirty_block);
 		return count;
@@ -450,36 +468,42 @@ int fs_write(int fd, void *buf, size_t count){
 		// did not account for datastart
 		int available_fat = -1;
 		if(left_over_track > 0){
-			available_fat = fat_representation[last_block];
+			available_fat = fat_representation[last_block - first_block.Data_Start] + first_block.Data_Start;
 		}
 		else{
 			available_fat = find_new_block(); 
+			if(available_fat == -1){
+				// no more blocks available
+				// update the offset
+				if(this_file.offset + written > this_file.root->file_size) {
+					this_file.root->file_size = this_file.offset + written;
+				}
+				fs_lseek(fd,this_file.offset + written);
+				return written;
+			}
+			// we have a block, now write into it
+			// need to account for fake fat vs real fat
+			fat_representation[last_block - first_block.Data_Start ] = available_fat - first_block.Data_Start;
+			fat_representation[available_fat - first_block.Data_Start] = FAT_E0C;
 		}
-		if(available_fat == -1){
-			// no more blocks available
-			// update the offset
-			this_file.root->file_size += written;
-			fs_lseek(fd,this_file.offset + written);
-			return written;
-		}
-		// we have a block, now write into it
-		// need to account for fake fat vs real fat
-		fat_representation[last_block - first_block.Data_Start ] = available_fat - first_block.Data_Start;
-		fat_representation[available_fat - first_block.Data_Start] = FAT_E0C;
 		if(leftover_count <= BLOCK_SIZE){
 			// just write to this block and then we dones
-			void* new_block = create_writeblock(buf_cpy,leftover_count);
+			// need to copy down the original block
+			void* new_block = create_writeblock(buf_cpy,leftover_count,available_fat);
 			// write it onto the data block
 			block_write(available_fat,new_block);
 			free(new_block);
 			written += leftover_count;
-			this_file.root->file_size += written;
+			if(this_file.offset + written > this_file.root->file_size) {
+				this_file.root->file_size = this_file.offset + written;
+			}
 			fs_lseek(fd,this_file.offset + written);
 			
 			return written;
 		}
 		// fresh block, we need to fill all of it
-		void* new_block = create_writeblock(buf_cpy,BLOCK_SIZE);
+		// create a fresh block without taking from the original block
+		void* new_block = create_writeblock(buf_cpy,BLOCK_SIZE, 0);
 		block_write(available_fat,new_block);
 		free(new_block);
 		written += BLOCK_SIZE;
@@ -573,4 +597,3 @@ int fs_read(int fd, void *buf, size_t count){
 	}
 	return -1;
 }
-
