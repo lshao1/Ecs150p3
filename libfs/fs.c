@@ -11,7 +11,6 @@
 #define FATSIZE 2
 #define FAT_E0C 0xFFFF
 #define EMPTY_REF 0x0
-/* TODO: Phase 1 */
 struct superblock {
 	uint64_t Signature;
 	uint16_t Block_Amounts;
@@ -71,7 +70,6 @@ int fs_mount(const char *diskname) {
 
 int fs_umount(void) {
 	int offset = 0;
-	/* TODO: Phase 1 */
 	// check if there is an fd open
 	for(int i = 0; i < FS_OPEN_MAX_COUNT; i++){
 		if(file_descriptors[i].root != EMPTY_REF){
@@ -132,7 +130,6 @@ int fs_info(void) {
 }
 
 int fs_create(const char *filename) {
-	/* TODO: Phase 2 */
 	// first find an available root dir
 	// not mounted
 	if(first_block.Signature == 0){
@@ -226,7 +223,6 @@ int fs_delete(const char *filename) {
 		}
 		}
 	}
-	/* TODO: Phase 2 */
 	// first find the file in the rootdir
 	root_dir_elements = FS_FILE_MAX_COUNT;
 	for(int i = 0; i < root_dir_elements;i++){
@@ -268,7 +264,6 @@ int fs_ls(void) {
 }
 
 int fs_open(const char *filename) {
-	/* TODO: Phase 3 */
 	// not mounted
 	if(first_block.Signature == 0){
 		return -1;
@@ -321,7 +316,6 @@ int fd_validation(int fd){
 	return 0;
 }
 int fs_close(int fd){
-	/* TODO: Phase 3 */
 	// not mounted
 	if(fd_validation(fd) == -1){
 		return -1;
@@ -333,7 +327,6 @@ int fs_close(int fd){
 }
 
 int fs_stat(int fd) {
-	/* TODO: Phase 3 */
 	if(fd_validation(fd) == -1){
 		return -1;
 	}
@@ -341,7 +334,6 @@ int fs_stat(int fd) {
 }
 
 int fs_lseek(int fd, size_t offset){
-	/* TODO: Phase 3 */
 	if(fd_validation(fd) == -1){
 		return -1;
 	}
@@ -405,7 +397,6 @@ int fs_write(int fd, void *buf, size_t count){
 	if(buf == NULL){
 		return -1;
 	}
-	/* TODO: Phase 4 */
 	struct fd this_file = file_descriptors[fd];
 	// need to find where the first block available is
 	void* buf_cpy = buf;
@@ -562,6 +553,7 @@ int fs_read(int fd, void *buf, size_t count){
 			memcpy(buf,dirty_block + offset_left, count);
 		}
 		buf = orig_buf;
+		fs_lseek(fd,file_descriptors[fd].offset + count);
 		return count;
 	}
 	memcpy(buf,dirty_block + offset_left, BLOCK_SIZE - offset_left);
@@ -585,6 +577,7 @@ int fs_read(int fd, void *buf, size_t count){
 			memcpy(buf,new_block,count_left);
 			buf = orig_buf;
 			total_read += count_left;
+			fs_lseek(fd,file_descriptors[fd].offset + total_read);
 			return total_read;
 		}
 		// arrive here if the count that we got left > a whole block
@@ -597,3 +590,4 @@ int fs_read(int fd, void *buf, size_t count){
 	}
 	return -1;
 }
+
