@@ -84,9 +84,9 @@ int fs_umount(void) {
 	}
 	// load in the root dir
 	int root_location = 1 + first_block.Fat_Blocks;
-	//free(fat_representation);
 	block_write(root_location,root_dir);
 	block_disk_close();
+	free(fat_representation);
 	return 0;
 }
 
