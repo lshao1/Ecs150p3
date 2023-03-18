@@ -2,7 +2,7 @@ libs := libfs.a
 objs    := disk.o fs.o
 
 CC      := gcc
-CFLAGS  := -Wall -MMD #-Werror -Wextra
+CFLAGS  := -Wall -MMD -Werror -Wextra
 CFLAGS  += -g
 
 ifneq ($(V),1)
